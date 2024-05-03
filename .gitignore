@@ -1,0 +1,23 @@
+# Python
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Models
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# C
+*.out
+*.o
+build/
+
+# Dev env
+.vscode
+.idea
+.cache
+*.log
