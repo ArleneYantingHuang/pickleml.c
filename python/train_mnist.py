@@ -21,12 +21,12 @@ def transform_data(batch):
 def main(args):
     dataset = datasets.load_dataset("mnist")
 
-    train_datast = (
+    train_dataset = (
         dataset["train"]
         .map(transform_data, batched=True, batch_size=32, num_proc=16)
         .with_format("torch")
     )
-    test_datast = (
+    test_dataset = (
         dataset["test"]
         .map(transform_data, batched=True, batch_size=32, num_proc=16)
         .with_format("torch")
@@ -37,14 +37,14 @@ def main(args):
     loss_scaler = torch.cuda.amp.GradScaler()
 
     train_loader = torch.utils.data.DataLoader(
-        train_datast,
+        train_dataset,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=4,
         pin_memory=True,
     )
     test_loader = torch.utils.data.DataLoader(
-        test_datast,
+        test_dataset,
         batch_size=args.batch_size,
         shuffle=False,
     )
