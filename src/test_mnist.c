@@ -4,28 +4,27 @@
 #include <stdio.h>
 
 typedef struct {
-  float *weight;
-  float *bias;
-  int input_size;
-  int output_size;
-} LinearLayer;
-
-typedef struct {
   LinearLayer linear0;
   LinearLayer linear2;
 } TwoLayerNet;
 
 int predict_digit(uint8_t *image, TwoLayerNet *model) {
   // TOOD: Implement neural network
-  // print image
-  for (int i = 0; i < 28; i++) {
-    for (int j = 0; j < 28; j++) {
-      printf("%d ", image[i * 28 + j]);
-    }
-    printf("\n");
-  }
-
-  return 0;
+  // predict using model
+  float *normalized_image = (float *)malloc(28 * 28 * sizeof(float));
+  image_normalize(image, normalized_image, 28 * 28, -1);
+  float *output_0 = (float *)malloc(256 * sizeof(float));
+  forward_linear_layer(output_0, normalized_image, &model->linear0, 28 * 28,
+                       256);
+  forward_elu(output_0, output_0, 256);
+  float *output_2 = (float *)malloc(10 * sizeof(float));
+  forward_linear_layer(output_2, output_0, &model->linear2, 256, 10);
+  forward_softmax(output_2, output_2, 10);
+  int digit = arg_max(output_2, 10);
+  free(normalized_image);
+  free(output_0);
+  free(output_2);
+  return digit;
 }
 
 int main(int argc, char *argv[]) {
@@ -42,14 +41,15 @@ int main(int argc, char *argv[]) {
   RenderTexture2D mnist_texture = LoadRenderTexture(mnist_size, mnist_size);
   // Initialize mnist image
   BeginTextureMode(mnist_texture);
-  ClearBackground(GetColor(0x000000FF));
+  ClearBackground(GetColor(0xFFFFFFFF));
   EndTextureMode();
 
   // Load mnist model
   float *mnist_model_0_weight =
       read_file("./binary/mnist_model_0_weight.bin", 28 * 28 * 256);
   float *mnist_model_0_bias = read_file("./binary/mnist_model_0_bias.bin", 256);
-  LinearLayer linear0 = {mnist_model_0_weight, mnist_model_0_bias, 28 * 28, 256};
+  LinearLayer linear0 = {mnist_model_0_weight, mnist_model_0_bias, 28 * 28,
+                         256};
   float *mnist_model_2_weight =
       read_file("./binary/mnist_model_2_weight.bin", 256 * 10);
   float *mnist_model_2_bias = read_file("./binary/mnist_model_2_bias.bin", 10);
@@ -57,6 +57,13 @@ int main(int argc, char *argv[]) {
   TwoLayerNet model = {linear0, linear2};
 
   while (!WindowShouldClose()) {
+    // Clear mnist image
+    if (IsKeyPressed(KEY_C)) {
+      BeginTextureMode(mnist_texture);
+      ClearBackground(GetColor(0xFFFFFFFF));
+      EndTextureMode();
+    }
+
     // Use mouse to draw mnist image
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
         (GetGestureDetected() == GESTURE_DRAG)) {
@@ -66,7 +73,7 @@ int main(int argc, char *argv[]) {
 
       // Draw mnist image
       BeginTextureMode(mnist_texture);
-      DrawRectangle(x, y, 1, 1, WHITE);
+      DrawCircle(x, y, 1.5, BLACK);
       EndTextureMode();
     }
 
