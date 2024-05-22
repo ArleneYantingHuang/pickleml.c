@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import einops
+from transformers import AutoImageProcessor, AutoModel
 
 
 class SimpleFCN(torch.nn.Module):
@@ -56,7 +57,9 @@ class TransformerLayer(torch.nn.Module):
     ):  # D: embedding size, H: number of heads, D_ff: feed-forward size
         super().__init__()
         self.norm_attention = torch.nn.LayerNorm(D)
-        self.attention = torch.nn.MultiheadAttention(embed_dim=D, num_heads=H, batch_first=True)
+        self.attention = torch.nn.MultiheadAttention(
+            embed_dim=D, num_heads=H, batch_first=True
+        )
         self.norm_ff = torch.nn.LayerNorm(D)
         self.ff = TransformerFeedForward(D, D_ff)
 
@@ -113,6 +116,27 @@ class TransformerClassifier(torch.nn.Module):
         return x, logits
 
 
+class TransformerClassifierComplex(torch.nn.Module):
+    def __init__(self, D, num_classes):
+        super().__init__()
+        self.net = torch.nn.Sequential(
+            torch.nn.LayerNorm(D),
+            torch.nn.Linear(D, 2 * D),
+            torch.nn.GELU(),
+            torch.nn.Linear(2 * D, D),
+            torch.nn.GELU(),
+            torch.nn.Linear(D, D // 2),
+            torch.nn.GELU(),
+            torch.nn.Linear(D // 2, num_classes)
+        )
+
+    def forward(self, x):
+        logits = self.net(x)  # B, num_classes
+        x = F.softmax(logits, dim=1)  # B, num_classes
+        return x, logits
+
+
+
 class VisionTransformer(torch.nn.Module):
     def __init__(self, H, W, P, D, D_ff, num_heads, num_layers, num_classes):
         super().__init__()
@@ -127,4 +151,21 @@ class VisionTransformer(torch.nn.Module):
         encoder_hiden_states = self.transformer(x)  # B, N + 1, D
         class_token = encoder_hiden_states[:, 0, :]  # B, D
         score, logits = self.classifier(class_token)  # B, num_classes
+        return score, logits
+
+
+class DinoV2(torch.nn.Module):
+    def __init__(self, hidden_size, num_classes, freeze = False):
+        super().__init__()
+        self.dinov2 = AutoModel.from_pretrained("facebook/dinov2-base")
+        self.classifier = TransformerClassifier(hidden_size, num_classes)
+        if freeze:
+            for param in self.dinov2.parameters():
+                param.requires_grad = False
+
+
+    def forward(self, x):
+        last_hidden_state = self.dinov2(pixel_values=x)[0]
+        class_token = last_hidden_state[:, 0, :]
+        score, logits = self.classifier(class_token)
         return score, logits
